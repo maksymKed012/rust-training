@@ -1,0 +1,4 @@
+fn main() {
+    println!("kek");
+    let x = 42;
+}
