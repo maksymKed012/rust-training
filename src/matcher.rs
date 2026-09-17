@@ -1,41 +1,27 @@
 use std::borrow::Cow;
 
 fn compare_lines(line: &str, pattern: &str, ignore_case: bool, invert: bool) -> bool {
-    let mut pattern: Cow<'_, str> = Cow::Borrowed(pattern);
-    if ignore_case {
-        pattern = Cow::Owned(pattern.to_lowercase());
-    }
-    if invert {
-        !line.contains(pattern.as_ref())
+    let (line, pattern): (Cow<'_, str>, Cow<'_, str>) = if ignore_case {
+        (
+            Cow::Owned(line.to_lowercase()),
+            Cow::Owned(pattern.to_lowercase()),
+        )
     } else {
-        line.contains(pattern.as_ref())
-    }
+        (Cow::Borrowed(line), Cow::Borrowed(pattern))
+    };
+
+    let is_match = line.contains(pattern.as_ref());
+    if invert { !is_match } else { is_match }
 }
 
-fn build_output_string(line: &str, line_number: i32, show_line_number: bool) -> String {
-    let mut line_str_ = String::new();
-    if show_line_number {
-        line_str_ = format!("line: {}", line_number);
-    }
-    format!("{} {}", line_str_, line)
-}
-
-pub fn find_matches(
-    pattern: &str,
-    file_content: &str,
+pub fn find_matches<'a>(
+    pattern: &'a str,
+    file_content: &'a str,
     ignore_case: bool,
-    show_line_number: bool,
     invert: bool,
-) {
-    let mut file_content: Cow<'_, str> = Cow::Borrowed(file_content);
-    if ignore_case {
-        file_content = Cow::Owned(file_content.to_lowercase());
-    }
-
-    for (i, line) in file_content.lines().enumerate() {
-        if compare_lines(line, pattern, ignore_case, invert) {
-            let out_str = build_output_string(line, (i + 1) as i32, show_line_number);
-            println!("match found: {out_str}");
-        }
-    }
+) -> impl Iterator<Item = (usize, &'a str)> {
+    file_content
+        .lines()
+        .enumerate()
+        .filter(move |(_, line)| compare_lines(line, pattern, ignore_case, invert))
 }

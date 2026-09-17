@@ -28,3 +28,7 @@ borrowing, lifetimes, error handling, traits, concurrency — not just "make it 
 
 6. **Keep explanations tight and concrete.** No filler, no affirmations like
    "great question," no padding.
+
+7. **Only update READING.md when a milestone is completed**, not per doc link
+   mentioned mid-conversation. Docs referenced while working a milestone go in
+   the chat response only.

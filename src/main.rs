@@ -36,21 +36,20 @@ fn open_file(file_name: &str) -> Result<String, GrepError> {
 
 fn run() -> Result<(), GrepError> {
     let cli_args = Args::parse();
-    let pattern = &cli_args.pattern;
-    let file_name = &cli_args.file_name;
-    let ignore_case = cli_args.ignore_case;
-    let show_line_number = cli_args.line_number;
-    let invert = cli_args.invert;
+    let file_content = open_file(&cli_args.file_name)?;
 
-    let file_content = open_file(file_name)?;
-
-    find_matches(
-        pattern,
+    for (i, line) in find_matches(
+        &cli_args.pattern,
         &file_content,
-        ignore_case,
-        show_line_number,
-        invert,
-    );
+        cli_args.ignore_case,
+        cli_args.invert,
+    ) {
+        if cli_args.line_number {
+            println!("{}: {}", i + 1, line);
+        } else {
+            println!("{}", line);
+        }
+    }
     Ok(())
 }
 
