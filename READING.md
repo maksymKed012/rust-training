@@ -32,12 +32,38 @@ concepts came up. Updated as the project progresses.
   inline closure could.
 - **Appendix C — Derivable Traits**: quick reference for what `#[derive(Debug)]`
   and friends actually generate and require.
-
-Not yet needed, coming up with milestone 4:
-- **Ch 13.2+ — Iterators**: `find_matches` returning `impl Iterator`, iterator
-  adapter chains (`.enumerate().filter().map()`).
 - **Ch 7 — Managing Growing Projects with Packages, Crates, and Modules**:
-  splitting `main.rs` → `main.rs` + `matcher.rs`.
+  splitting `main.rs` → `main.rs` + `matcher.rs`; module privacy, `mod`/`use`,
+  `super` for relative paths into the parent module (used by `mod tests`).
+- **Ch 10.2 — "Returning Types that Implement Traits"**: `impl Iterator<Item = ...>`
+  in return position; why every branch of the function body must produce the
+  *same* concrete type (the `Empty<_>` vs `Filter<...>` mismatch), and `Box<dyn
+  Trait>` as the escape hatch when branches genuinely differ.
+- **Ch 13.2 — Processing a Series of Items with Iterators**: laziness,
+  `.enumerate().filter().map()`, closure parameter destructuring vs. capturing
+  from the enclosing scope (`move`), `Iterator::next`/`count`/`size_hint`.
+- **Ch 11.1 & 11.3 — Writing Automated Tests / Test Organization**:
+  `#[cfg(test)] mod tests`, `#[test]`, `assert_eq!`; unit tests (inline,
+  access private items) vs. integration tests (`tests/` dir, public API only).
+- **Ch 3.2 — Shadowing**: `Some(p)` binds a *new* name inside a match arm; it
+  doesn't refer back to the matched variable (`path`) at all — you could even
+  shadow it by naming the binding `path` again, a separate variable of the
+  inner type in that arm's scope only.
+- **Ch 18.2 — Trait Objects**: `Box<dyn Read>` to unify `File` and `Stdin`
+  behind one runtime-chosen type — the case where `Box<dyn Trait>` is the
+  actually-correct tool (two genuinely different concrete types), not a
+  workaround like the `Empty<_>`/`Filter<...>` case earlier.
+
+## Rust vs C++ build model
+
+- No preprocessor — macros (`macro_rules!`, derive macros like `clap`'s)
+  operate on the token stream/AST, hygienically, not textual substitution.
+- Compilation unit is the **crate** (whole module tree), not a per-file
+  translation unit — why no headers/forward declarations, and why cross-module
+  references just work.
+- Codegen still goes through LLVM (like clang), and linking is still a real,
+  separate step via the system linker — crate-to-crate boundaries are roughly
+  where C++'s separately-compiled-library boundary sits.
 
 ## std docs
 
@@ -64,6 +90,48 @@ Not yet needed, coming up with milestone 4:
   casts (fallible/checked vs silent truncating/wrapping)
 - [`std::process::exit`](https://doc.rust-lang.org/std/process/fn.exit.html)
 - [`Iterator::enumerate`](https://doc.rust-lang.org/std/iter/trait.Iterator.html#method.enumerate)
+  / [`Iterator::filter`](https://doc.rust-lang.org/std/iter/trait.Iterator.html#method.filter)
+  (predicate takes `&Item`) / [`Iterator::map`](https://doc.rust-lang.org/std/iter/trait.Iterator.html#method.map)
+  (closure takes `Item` by value, returns any `B`)
+- [`Iterator::next`](https://doc.rust-lang.org/std/iter/trait.Iterator.html#tymethod.next)
+  / [`Iterator::count`](https://doc.rust-lang.org/std/iter/trait.Iterator.html#method.count)
+  / [`Iterator::size_hint`](https://doc.rust-lang.org/std/iter/trait.Iterator.html#method.size_hint)
+  / [`ExactSizeIterator`](https://doc.rust-lang.org/std/iter/trait.ExactSizeIterator.html)
+  (why `Filter` doesn't implement it — can't know match count without running
+  the predicate)
+- [`std::iter::empty`](https://doc.rust-lang.org/std/iter/fn.empty.html)
+- [`Box<dyn Trait>`](https://doc.rust-lang.org/book/ch18-02-trait-objects.html) —
+  needed when different branches of a function must return genuinely different
+  concrete iterator types; `impl Trait` return position can't do this (commits
+  to one concrete type for the whole function)
+- [Rust Reference — the `cfg` attribute](https://doc.rust-lang.org/reference/conditional-compilation.html#the-cfg-attribute) —
+  `#[cfg(test)]`, compile-time conditional inclusion (not a preprocessor pass)
+- [`std::sync::OnceLock`](https://doc.rust-lang.org/std/sync/struct.OnceLock.html) —
+  lazily-initialized `static`, needed for anything requiring heap allocation
+  (e.g. an owned `String`) at "global" scope, since `const`/`static` initializers
+  must be compile-time evaluable
+- [`std::io::Read`](https://doc.rust-lang.org/std/io/trait.Read.html) —
+  the trait unifying `File` and `Stdin`; `read_to_string(&mut self, ...)` takes
+  `&mut self`, so the binding holding the reader must be declared `mut`
+- [`std::fs::File::open`](https://doc.rust-lang.org/std/fs/struct.File.html#method.open)
+  vs [`std::fs::read_to_string`](https://doc.rust-lang.org/std/fs/fn.read_to_string.html) —
+  the former only opens (fallible on `NotFound`), the latter opens *and* reads
+  in one non-decomposable call, which is why it stopped fitting once stdin
+  needed a separate open step
+- [`std::io::stdin`](https://doc.rust-lang.org/std/io/fn.stdin.html) /
+  [`Stdin`](https://doc.rust-lang.org/std/io/struct.Stdin.html) — implements
+  `Read` directly (locks internally per call); `.lock()` for `StdinLock`
+  (adds `BufRead`, holds the lock across multiple calls)
+- [`Option::as_deref`](https://doc.rust-lang.org/std/option/enum.Option.html#method.as_deref) —
+  `Option<String>` → `Option<&str>` by borrowing, not moving; needed to reuse
+  a filename after passing it to `File::open` (moving it via `.unwrap()` would
+  consume it, an ownership bug from the same family as C++ use-after-move,
+  except caught at compile time)
+- [`Result::map`](https://doc.rust-lang.org/std/result/enum.Result.html#method.map)
+  vs [`Result::map_err`](https://doc.rust-lang.org/std/result/enum.Result.html#method.map_err) —
+  mirror images (`Ok` side vs `Err` side); both are **eager** (run the closure
+  immediately, unlike `Iterator` adapters), which is why a closure inside them
+  can safely borrow a local that an `Iterator::map` closure could not
 
 ## Crates
 

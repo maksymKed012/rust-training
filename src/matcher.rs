@@ -25,3 +25,32 @@ pub fn find_matches<'a>(
         .enumerate()
         .filter(move |(_, line)| compare_lines(line, pattern, ignore_case, invert))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    const DUMMY_FILE: &str = "hi
+    mom";
+    #[test]
+    fn find_matches_empty_pattern_expect_all_matches() {
+        let mut result = find_matches("", DUMMY_FILE, true, false);
+        assert_eq!(result.next().is_none(), false);
+    }
+
+    #[test]
+    fn find_matches_not_matching_pattern_expect_no_matches() {
+        let mut result = find_matches("kek", DUMMY_FILE, true, false);
+        assert_eq!(result.next().is_none(), true);
+    }
+
+    #[test]
+    fn find_matches_matching_pattern_expect_1_match() {
+        let result = find_matches("hi", DUMMY_FILE, true, false);
+        assert_eq!(result.count(), 1);
+    }
+    #[test]
+    fn find_matches_other_matching_pattern_expect_1_match() {
+        let result = find_matches("mom", DUMMY_FILE, true, false);
+        assert_eq!(result.count(), 1);
+    }
+}

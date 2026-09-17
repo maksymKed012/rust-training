@@ -1,6 +1,7 @@
 use clap::Parser;
 mod matcher;
 use matcher::find_matches;
+use std::io::Read;
 use thiserror::Error;
 
 #[derive(Parser)]
@@ -8,7 +9,7 @@ struct Args {
     #[arg()]
     pattern: String,
     #[arg()]
-    file_name: String,
+    file_name: Option<String>,
     #[arg(short = 'i', long)]
     ignore_case: bool,
     #[arg(short = 'n', long)]
@@ -25,18 +26,36 @@ pub enum GrepError {
     Io(#[from] std::io::Error),
 }
 
-fn open_file(file_name: &str) -> Result<String, GrepError> {
-    std::fs::read_to_string(file_name).map_err(|e| match e.kind() {
-        std::io::ErrorKind::NotFound => {
-            GrepError::FileNotFound(format!("File {file_name} not found. {e}"))
-        }
-        _ => GrepError::Io(e),
-    })
+fn get_input_source(source: Option<String>) -> Result<Box<dyn Read>, GrepError> {
+    if source.is_none() {
+        Ok(Box::new(std::io::stdin()))
+    } else {
+        let path = source.as_deref().unwrap();
+        std::fs::File::open(path)
+            .map(|file| Box::new(file) as Box<dyn Read>)
+            .map_err(|e| match e.kind() {
+                std::io::ErrorKind::NotFound => {
+                    GrepError::FileNotFound(format!("File {path} not found. {e}"))
+                }
+                _ => GrepError::Io(e),
+            })
+    }
+}
+
+fn open_input_source(mut input_source: Box<dyn Read>) -> Result<String, GrepError> {
+    let mut buffer: String = String::new();
+    input_source
+        .read_to_string(&mut buffer)
+        .map(|_| buffer)
+        .map_err(|e| match e.kind() {
+            _ => GrepError::Io(e),
+        })
 }
 
 fn run() -> Result<(), GrepError> {
     let cli_args = Args::parse();
-    let file_content = open_file(&cli_args.file_name)?;
+    let input_source = get_input_source(cli_args.file_name)?;
+    let file_content = open_input_source(input_source)?;
 
     for (i, line) in find_matches(
         &cli_args.pattern,
